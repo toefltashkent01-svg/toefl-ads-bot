@@ -115,12 +115,12 @@ bot.on('callback_query', async (query) => {
       break;
 
     case 'timeline':
-      // Answer + reveal button 3
+      try { await bot.deleteMessage(chatId, query.message.message_id); } catch (e) {}
       await bot.sendMessage(chatId, TIMELINE_TEXT, { reply_markup: BTN_3 });
       break;
 
     case 'price':
-      // Answer + reveal contact buttons
+      try { await bot.deleteMessage(chatId, query.message.message_id); } catch (e) {}
       await bot.sendMessage(chatId, PRICE_TEXT);
       await bot.sendMessage(chatId, CONTACT_TEXT, { reply_markup: CONTACT_KEYBOARD });
       break;
