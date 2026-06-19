@@ -17,51 +17,41 @@ const {
 if (!BOT_TOKEN)   throw new Error('BOT_TOKEN is required');
 if (!MONGODB_URI) throw new Error('MONGODB_URI is required');
 
-// ── Static content (edit these freely) ──────────────────────────────────────
+// ── Static content ───────────────────────────────────────────────────────────
 
 const WELCOME_TEXT =
   `TOEFL Tashkent jamoasi shu kungacha 600+ studentga sertifikat olishda yordam bergan ✅\n\n` +
-  `📢 Kanalimiz: https://t.me/${CHANNEL_USERNAME || 'toefltashkent1'}\n\n` +
-  `Quyidagilardan birini tanlang:`;
+  `Natijalarimiz: https://t.me/${CHANNEL_USERNAME || 'toefltashkent1'}`;
 
-const HOW_TO_GET_TEXT =
-  `🎓 Qanday qilib olsa bo'ladi?\n\n` +
-  `[Bu qismni keyinroq to'ldirasiz]`;
+const HOW_TEXT =
+  `Testni biz ishlaymiz, natija esa sizniki — yuqori natija kafolatlangan 🎯`;
 
 const TIMELINE_TEXT =
-  `⏳ Qancha vaqtda tayyorlanish mumkin?\n\n` +
+  `⏳ Tayyorlanish muddati:\n\n` +
   `• Ingliz tilini umuman bilmasangiz → 2 haftada\n` +
   `• Boshlang'ich daraja bo'lsa → 10 kunda\n` +
   `• B1-B2 darajasi bo'lsa → 1 haftada`;
 
 const PRICE_TEXT =
-  `💰 Xizmat narxi: $800\n\n` +
-  `Narxga nima kiradi:\n` +
-  `[Bu qismni keyinroq to'ldirasiz]`;
+  `💰 Narxi: $800\n\n` +
+  `Narxga test davomida to'liq yordam kiradi.\n` +
+  `To'lovni natijani qo'lingizga olgandan keyin qilasiz ✅`;
 
 const CONTACT_TEXT = `📞 Biz bilan bog'lanish:`;
 
 // ── Keyboards ────────────────────────────────────────────────────────────────
 
-const BACK_ROW = [{ text: '⬅️ Orqaga', callback_data: 'back_main' }];
+const BTN_1 = { inline_keyboard: [[{ text: "❓ Qanday qilib olsa bo'ladi?", callback_data: 'how' }]] };
+const BTN_2 = { inline_keyboard: [[{ text: '⏳ Qancha vaqtda olsa bo\'ladi?',  callback_data: 'timeline' }]] };
+const BTN_3 = { inline_keyboard: [[{ text: '💰 Narxi qancha?',                  callback_data: 'price' }]] };
 
-const MAIN_KEYBOARD = {
+const CONTACT_KEYBOARD = {
   inline_keyboard: [
-    [{ text: "🎓 Qanday qilib olsa bo'ladi?",          callback_data: 'how_to_get' }],
-    [{ text: '⏳ Qancha vaqtda tayyorlanish mumkin?',   callback_data: 'timeline'   }],
-    [{ text: '💰 Narxi qancha?',                        callback_data: 'price'      }],
-    [{ text: "📞 Bog'lanish",                           callback_data: 'contact'    }],
+    [{ text: `📞 Qo'ng'iroq qilish`,       url: `tel:${ADMIN_PHONE || '+998335246820'}` }],
+    [{ text: '💬 Telegram orqali bog\'lanish', url: `https://t.me/${ADMIN_USERNAME || 'TOEFLadmint'}` }],
+    [{ text: '📲 Telefon raqamimni qoldirish', callback_data: 'share_contact' }],
   ],
 };
-
-const contactKeyboard = () => ({
-  inline_keyboard: [
-    [{ text: '💬 Telegram orqali',      url: `https://t.me/${ADMIN_USERNAME || 'TOEFLadmint'}` }],
-    [{ text: '📞 Qo\'ng\'iroq qilish',  url: `tel:${ADMIN_PHONE || '+998335246820'}`           }],
-    [{ text: '📲 Telefon raqam qoldirish', callback_data: 'share_contact' }],
-    [BACK_ROW[0]],
-  ],
-});
 
 // ── MongoDB ──────────────────────────────────────────────────────────────────
 
@@ -74,7 +64,7 @@ mongoose
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: false });
 
-// /start — deep-link payload becomes the adId
+// /start
 bot.onText(/\/start ?(.*)/, async (msg, match) => {
   const userId = msg.from.id;
   const adId   = match[1].trim() || null;
@@ -105,46 +95,33 @@ bot.onText(/\/start ?(.*)/, async (msg, match) => {
     console.error('DB error on /start:', err.message);
   }
 
-  await bot.sendMessage(userId, WELCOME_TEXT, { reply_markup: MAIN_KEYBOARD });
+  // Welcome + only first button
+  await bot.sendMessage(userId, WELCOME_TEXT, {
+    reply_markup: BTN_1,
+    disable_web_page_preview: true,
+  });
 });
 
 // Inline button handler
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
-  const msgId  = query.message.message_id;
   await bot.answerCallbackQuery(query.id);
 
-  const edit = (text, keyboard) =>
-    bot.editMessageText(text, {
-      chat_id: chatId, message_id: msgId,
-      reply_markup: { inline_keyboard: [...(keyboard || []), BACK_ROW] },
-    });
-
   switch (query.data) {
-    case 'how_to_get':
-      await edit(HOW_TO_GET_TEXT);
+    case 'how':
+      // Answer + reveal button 2
+      await bot.sendMessage(chatId, HOW_TEXT, { reply_markup: BTN_2 });
       break;
 
     case 'timeline':
-      await edit(TIMELINE_TEXT);
+      // Answer + reveal button 3
+      await bot.sendMessage(chatId, TIMELINE_TEXT, { reply_markup: BTN_3 });
       break;
 
     case 'price':
-      await edit(PRICE_TEXT);
-      break;
-
-    case 'contact':
-      await bot.editMessageText(CONTACT_TEXT, {
-        chat_id: chatId, message_id: msgId,
-        reply_markup: contactKeyboard(),
-      });
-      break;
-
-    case 'back_main':
-      await bot.editMessageText(WELCOME_TEXT, {
-        chat_id: chatId, message_id: msgId,
-        reply_markup: MAIN_KEYBOARD,
-      });
+      // Answer + reveal contact buttons
+      await bot.sendMessage(chatId, PRICE_TEXT);
+      await bot.sendMessage(chatId, CONTACT_TEXT, { reply_markup: CONTACT_KEYBOARD });
       break;
 
     case 'share_contact':
@@ -194,12 +171,12 @@ bot.on('contact', async (msg) => {
         `🆔 ID: ${userId}`
       );
     } catch (err) {
-      console.error('Failed to notify admin:', err.message);
+      console.error('Admin notify error:', err.message);
     }
   }
 });
 
-// ── HTTP server (webhook + health check) ─────────────────────────────────────
+// ── HTTP server ───────────────────────────────────────────────────────────────
 
 const WEBHOOK_PATH = `/bot${BOT_TOKEN}`;
 
@@ -235,7 +212,5 @@ server.listen(PORT, () => {
     bot.setWebHook(`${WEBHOOK_URL}${WEBHOOK_PATH}`)
       .then(() => console.log(`Webhook set: ${WEBHOOK_URL}${WEBHOOK_PATH}`))
       .catch((err) => console.error('Webhook error:', err.message));
-  } else {
-    console.warn('WEBHOOK_URL not set — set it after Railway deploy');
   }
 });
