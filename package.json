@@ -1,0 +1,18 @@
+{
+  "name": "toefl-ads-bot",
+  "version": "1.0.0",
+  "description": "TOEFL Tashkent Ads Bot — Telegram webhook bot",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "mongoose": "^8.4.1",
+    "node-telegram-bot-api": "^0.66.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}
