@@ -37,7 +37,9 @@ const PRICE_TEXT =
   `Narxga test davomida to'liq yordam kiradi.\n` +
   `To'lovni natijani qo'lingizga olgandan keyin qilasiz ✅`;
 
-const CONTACT_TEXT = `📞 Biz bilan bog'lanish:`;
+const CONTACT_TEXT =
+  `📞 Biz bilan bog'lanish:\n\n` +
+  `Qo'ng'iroq: ${ADMIN_PHONE || '+998335246820'}`;
 
 // ── Keyboards ────────────────────────────────────────────────────────────────
 
@@ -47,7 +49,6 @@ const BTN_3 = { inline_keyboard: [[{ text: '💰 Narxi qancha?',                
 
 const CONTACT_KEYBOARD = {
   inline_keyboard: [
-    [{ text: `📞 Qo'ng'iroq qilish`,       url: `tel:${ADMIN_PHONE || '+998335246820'}` }],
     [{ text: '💬 Telegram orqali bog\'lanish', url: `https://t.me/${ADMIN_USERNAME || 'TOEFLadmint'}` }],
     [{ text: '📲 Telefon raqamimni qoldirish', callback_data: 'share_contact' }],
   ],
