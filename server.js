@@ -56,10 +56,34 @@ const CONTACT_KEYBOARD = {
 
 // ── MongoDB ──────────────────────────────────────────────────────────────────
 
+// Primary DB: toefl-ads-bot
 mongoose
   .connect(MONGODB_URI)
   .then(() => console.log('MongoDB connected'))
   .catch((err) => { console.error('MongoDB error:', err.message); process.exit(1); });
+
+// Secondary DB: sales-bot (for COMPANY HUB dashboard)
+function buildSalesBotUri(uri) {
+  const q = uri.indexOf('?');
+  const lastSlash = uri.lastIndexOf('/', q > -1 ? q : undefined);
+  return uri.substring(0, lastSlash + 1) + 'sales-bot' + (q > -1 ? uri.substring(q) : '');
+}
+
+const salesDbConn = mongoose.createConnection(buildSalesBotUri(MONGODB_URI));
+salesDbConn.on('connected', () => console.log('Sales DB connected (COMPANY HUB)'));
+salesDbConn.on('error', (e) => console.error('Sales DB error:', e.message));
+
+const SalesUser = salesDbConn.model('SalesUser', new mongoose.Schema({
+  _id: Number,
+  name: String,
+  username: String,
+  tag: String,
+  phone_number: String,
+  funnel_step: mongoose.Schema.Types.Mixed,
+  follow_up_step: Number,
+  last_message: Date,
+  created_at: Date,
+}, { strict: false }), 'users');
 
 // ── Bot ──────────────────────────────────────────────────────────────────────
 
@@ -70,14 +94,30 @@ bot.onText(/\/start ?(.*)/, async (msg, match) => {
   const userId = msg.from.id;
   const adId   = match[1].trim() || null;
 
+  const fullName = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ');
+  const username = msg.from.username || null;
+  const now = new Date();
+
   try {
+    // Save to toefl-ads-bot DB
     await Lead.findOneAndUpdate(
       { userId },
+      { userId, fullName, username, adId },
+      { upsert: true, new: true }
+    );
+
+    // Save to sales-bot DB so COMPANY HUB dashboard shows this lead
+    await SalesUser.findOneAndUpdate(
+      { _id: userId },
       {
-        userId,
-        fullName: [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' '),
-        username: msg.from.username || null,
-        adId,
+        _id: userId,
+        name: fullName,
+        username: username || 'yoq',
+        tag: adId ? `ads:${adId}` : 'ads_lead',
+        funnel_step: 'ads_funnel',
+        follow_up_step: 0,
+        last_message: now,
+        created_at: now,
       },
       { upsert: true, new: true }
     );
@@ -86,8 +126,8 @@ bot.onText(/\/start ?(.*)/, async (msg, match) => {
       await bot.sendMessage(
         ADMIN_CHAT_ID,
         `🆕 Yangi foydalanuvchi!\n` +
-        `👤 ${[msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ')}\n` +
-        `🔗 @${msg.from.username || 'yoq'}\n` +
+        `👤 ${fullName}\n` +
+        `🔗 @${username || 'yoq'}\n` +
         `🆔 ID: ${userId}` +
         (adId ? `\n📢 Reklama: ${adId}` : '')
       );
@@ -151,6 +191,13 @@ bot.on('contact', async (msg) => {
     await Lead.findOneAndUpdate(
       { userId },
       { phone, fullName, username },
+      { upsert: true }
+    );
+
+    // Update phone in sales-bot DB for COMPANY HUB
+    await SalesUser.findOneAndUpdate(
+      { _id: userId },
+      { phone_number: phone, last_message: new Date() },
       { upsert: true }
     );
   } catch (err) {
