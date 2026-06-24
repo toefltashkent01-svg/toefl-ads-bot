@@ -110,14 +110,15 @@ bot.onText(/\/start ?(.*)/, async (msg, match) => {
     await SalesUser.findOneAndUpdate(
       { _id: userId },
       {
-        _id: userId,
-        name: fullName,
-        username: username || 'yoq',
-        tag: adId ? `ads:${adId}` : 'ads_lead',
-        funnel_step: 'ads_funnel',
-        follow_up_step: 0,
-        last_message: now,
-        created_at: now,
+        $set: {
+          name: fullName,
+          username: username || 'yoq',
+          tag: adId ? `ads:${adId}` : 'ads_lead',
+          funnel_step: 'ads_funnel',
+          follow_up_step: 0,
+          last_message: now,
+        },
+        $setOnInsert: { created_at: now },
       },
       { upsert: true, new: true }
     );
