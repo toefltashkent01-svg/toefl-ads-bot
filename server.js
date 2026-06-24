@@ -33,7 +33,7 @@ const TIMELINE_TEXT =
   `• B1-B2 darajasi bo'lsa → 1 haftada`;
 
 const PRICE_TEXT =
-  `💰 Narxi: $800\n\n` +
+  `💰 Narxi: $1200\n\n` +
   `Narxga test davomida to'liq yordam kiradi.\n` +
   `To'lovni natijani qo'lingizga olgandan keyin qilasiz ✅`;
 
