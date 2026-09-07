@@ -41,6 +41,50 @@ const CONTACT_TEXT =
   `📞 Biz bilan bog'lanish:\n\n` +
   `Qo'ng'iroq: ${ADMIN_PHONE || '+998335246820'}`;
 
+// ── DET Help content — DRAFT, NOT OWNER-APPROVED ────────────────────────────
+//
+// 🚨 READ BEFORE POINTING ANY REAL AD AT A "det_"-PREFIXED adId. This bot was
+// built TOEFL-only (see WELCOME_TEXT/PRICE_TEXT above — hardcoded $1200,
+// TOEFL-specific framing). Extending it to DET without also giving it DET's
+// own words would have shown a real DET prospect TOEFL's price and process,
+// which is worse than not tracking DET ads at all — so this text exists
+// alongside the tracking capability below, not as an afterthought.
+//
+// The FACTS in it are verified against `DET-and-DET-Help.md` (sourced from
+// `seed-staff-knowledge-facts.ts` in `maktab-english`): $50 question-bank
+// access, a free YouTube prep playlist, Duolingo's own $70 registration fee
+// (passthrough, never this company's revenue), and a $400 help fee that is
+// only fully collected if the certificate arrives AND the student is
+// satisfied — otherwise $200 plus a free course. The WORDING and TONE are a
+// first draft, not reviewed or approved by the owner the way the TOEFL copy
+// above presumably was before it shipped. Get that sign-off before any real
+// DET ad campaign uses this bot.
+const DET_WELCOME_TEXT =
+  `TOEFL Tashkent jamoasi endi Duolingo English Test (DET) sertifikatini olishda ham yordam beradi ✅`;
+
+const DET_HOW_TEXT =
+  `Savollar bazasi va bepul tayyorgarlik videolari orqali tayyorlanasiz, keyin rasmiy ro'yxatdan o'tasiz 🎯`;
+
+const DET_TIMELINE_TEXT =
+  `⏳ Tayyorlanish muddati sizning boshlang'ich darajangizga bog'liq — ro'yxatdan o'tgach individual belgilanadi.`;
+
+const DET_PRICE_TEXT =
+  `💰 Narxi:\n\n` +
+  `• $50 — savollar bazasiga kirish\n` +
+  `• $70 — Duolingo'ning o'z rasmiy ro'yxatdan o'tish to'lovi (to'g'ridan-to'g'ri Duolingo'ga boradi, bizga emas)\n` +
+  `• $400 — yordam xizmati narxi (sertifikat kelib, natijadan mamnun bo'lsangiz to'liq olinadi; aks holda $200 + bepul kurs)`;
+
+/**
+ * The ONE place `Lead.product` is ever derived. A plain `adId` naming
+ * convention — "det_..." means DET, anything else means TOEFL — not a guess
+ * made anywhere else in this file. See `Lead.js`'s own field comment and the
+ * "DET Help content" note above for why setting this alone does not make a
+ * real DET funnel live.
+ */
+function productFor(adId) {
+  return adId && /^det_/i.test(adId) ? 'DET' : 'TOEFL';
+}
+
 // ── Keyboards ────────────────────────────────────────────────────────────────
 
 const BTN_1 = { inline_keyboard: [[{ text: "❓ Qanday qilib olsa bo'ladi?", callback_data: 'how' }]] };
@@ -93,6 +137,7 @@ const bot = new TelegramBot(BOT_TOKEN, { polling: false });
 bot.onText(/\/start ?(.*)/, async (msg, match) => {
   const userId = msg.from.id;
   const adId   = match[1].trim() || null;
+  const product = productFor(adId);
 
   const fullName = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ');
   const username = msg.from.username || null;
@@ -102,7 +147,7 @@ bot.onText(/\/start ?(.*)/, async (msg, match) => {
     // Save to toefl-ads-bot DB
     await Lead.findOneAndUpdate(
       { userId },
-      { userId, fullName, username, adId },
+      { userId, fullName, username, adId, product },
       { upsert: true, new: true }
     );
 
@@ -137,32 +182,46 @@ bot.onText(/\/start ?(.*)/, async (msg, match) => {
     console.error('DB error on /start:', err.message);
   }
 
-  // Welcome + only first button
-  await bot.sendMessage(userId, WELCOME_TEXT, {
+  // Welcome + only first button — product-specific text, see `productFor`.
+  await bot.sendMessage(userId, product === 'DET' ? DET_WELCOME_TEXT : WELCOME_TEXT, {
     reply_markup: BTN_1,
     disable_web_page_preview: true,
   });
 });
 
 // Inline button handler
+//
+// 🚨 `query.data` alone never says which product this chat started with —
+// the callback only fires after `/start` already ran, so the lead's own
+// stored `product` (set once, at `/start`, by `productFor`) is looked up by
+// `chatId` here rather than re-derived or guessed.
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   await bot.answerCallbackQuery(query.id);
 
+  let product = 'TOEFL';
+  try {
+    const lead = await Lead.findOne({ userId: chatId }, 'product').lean();
+    if (lead && lead.product === 'DET') product = 'DET';
+  } catch (err) {
+    console.error('DB error reading lead product on callback:', err.message);
+  }
+  const isDet = product === 'DET';
+
   switch (query.data) {
     case 'how':
       // Answer + reveal button 2
-      await bot.sendMessage(chatId, HOW_TEXT, { reply_markup: BTN_2 });
+      await bot.sendMessage(chatId, isDet ? DET_HOW_TEXT : HOW_TEXT, { reply_markup: BTN_2 });
       break;
 
     case 'timeline':
       try { await bot.deleteMessage(chatId, query.message.message_id); } catch (e) {}
-      await bot.sendMessage(chatId, TIMELINE_TEXT, { reply_markup: BTN_3 });
+      await bot.sendMessage(chatId, isDet ? DET_TIMELINE_TEXT : TIMELINE_TEXT, { reply_markup: BTN_3 });
       break;
 
     case 'price':
       try { await bot.deleteMessage(chatId, query.message.message_id); } catch (e) {}
-      await bot.sendMessage(chatId, PRICE_TEXT);
+      await bot.sendMessage(chatId, isDet ? DET_PRICE_TEXT : PRICE_TEXT);
       await bot.sendMessage(chatId, CONTACT_TEXT, { reply_markup: CONTACT_KEYBOARD });
       break;
 
