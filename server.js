@@ -3,6 +3,7 @@ const http = require('http');
 const mongoose = require('mongoose');
 const TelegramBot = require('node-telegram-bot-api');
 const Lead = require('./models/Lead');
+const { resolveLead } = require('./identity-resolve');
 
 const {
   BOT_TOKEN,
@@ -262,6 +263,10 @@ bot.on('contact', async (msg) => {
   } catch (err) {
     console.error('DB error on contact:', err.message);
   }
+
+  // Master Student Identity (identity-service) — fire-and-forget, never
+  // awaited by anything that would delay this lead's own confirmation.
+  void resolveLead({ userId, fullName, phone, username });
 
   await bot.sendMessage(userId, "✅ Rahmat! Tez orada siz bilan bog'lanamiz 😊", {
     reply_markup: { remove_keyboard: true },
