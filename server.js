@@ -41,24 +41,23 @@ const CONTACT_TEXT =
   `📞 Biz bilan bog'lanish:\n\n` +
   `Qo'ng'iroq: ${ADMIN_PHONE || '+998335246820'}`;
 
-// ── DET Help content — DRAFT, NOT OWNER-APPROVED ────────────────────────────
+// ── DET Help content — OWNER-APPROVED 2026-09-09 ────────────────────────────
 //
-// 🚨 READ BEFORE POINTING ANY REAL AD AT A "det_"-PREFIXED adId. This bot was
-// built TOEFL-only (see WELCOME_TEXT/PRICE_TEXT above — hardcoded $1200,
-// TOEFL-specific framing). Extending it to DET without also giving it DET's
-// own words would have shown a real DET prospect TOEFL's price and process,
-// which is worse than not tracking DET ads at all — so this text exists
-// alongside the tracking capability below, not as an afterthought.
+// This bot was built TOEFL-only (see WELCOME_TEXT/PRICE_TEXT above —
+// hardcoded $1200, TOEFL-specific framing). Extending it to DET without also
+// giving it DET's own words would have shown a real DET prospect TOEFL's
+// price and process, which is worse than not tracking DET ads at all — so
+// this text exists alongside the tracking capability below, not as an
+// afterthought.
 //
 // The FACTS in it are verified against `DET-and-DET-Help.md` (sourced from
 // `seed-staff-knowledge-facts.ts` in `maktab-english`): $50 question-bank
 // access, a free YouTube prep playlist, Duolingo's own $70 registration fee
 // (passthrough, never this company's revenue), and a $400 help fee that is
 // only fully collected if the certificate arrives AND the student is
-// satisfied — otherwise $200 plus a free course. The WORDING and TONE are a
-// first draft, not reviewed or approved by the owner the way the TOEFL copy
-// above presumably was before it shipped. Get that sign-off before any real
-// DET ad campaign uses this bot.
+// satisfied — otherwise $200 plus a free course. The wording itself was
+// reviewed and approved by the owner on 2026-09-09 — a real "det_"-prefixed
+// ad campaign may now use this bot as-is.
 const DET_WELCOME_TEXT =
   `TOEFL Tashkent jamoasi endi Duolingo English Test (DET) sertifikatini olishda ham yordam beradi ✅`;
 

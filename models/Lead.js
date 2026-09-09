@@ -13,10 +13,10 @@ const leadSchema = new mongoose.Schema({
   // before this field existed reads correctly with no backfill.
   //
   // ⚠️ THE BOT DOES BRANCH ITS MESSAGES ON THIS (see DET_WELCOME_TEXT etc. in
-  // server.js), but that DET copy is a FIRST DRAFT, not owner-reviewed the
-  // way the TOEFL copy presumably was before it shipped — see server.js's
-  // own comment above those constants. No `det_`-prefixed adId has ever
-  // actually been used for a real ad; get the copy approved before one is.
+  // server.js) — that DET copy was reviewed and approved by the owner on
+  // 2026-09-09 (see server.js's own comment above those constants). No
+  // `det_`-prefixed adId has actually been used for a real ad yet; the copy
+  // is ready whenever one is.
   product:  { type: String, enum: ['TOEFL', 'DET'], default: 'TOEFL' },
   createdAt:{ type: Date,   default: Date.now },
 });
