@@ -4,6 +4,8 @@ const mongoose = require('mongoose');
 const TelegramBot = require('node-telegram-bot-api');
 const Lead = require('./models/Lead');
 const { resolveLead } = require('./identity-resolve');
+const { captureLead } = require('./sales-engine');
+const { recordTouch } = require('./content-intelligence');
 
 const {
   BOT_TOKEN,
@@ -182,6 +184,11 @@ bot.onText(/\/start ?(.*)/, async (msg, match) => {
     console.error('DB error on /start:', err.message);
   }
 
+  // A person-level ContentTouch the moment the ad deep link is actually
+  // opened — see content-intelligence.js's own header for why this is worth
+  // a separate call from sales-engine's later campaign-level match.
+  void recordTouch({ userId, fullName, adId });
+
   // Welcome + only first button — product-specific text, see `productFor`.
   await bot.sendMessage(userId, product === 'DET' ? DET_WELCOME_TEXT : WELCOME_TEXT, {
     reply_markup: BTN_1,
@@ -247,11 +254,16 @@ bot.on('contact', async (msg) => {
   const fullName = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ');
   const username = msg.from.username || 'yoq';
 
+  // `{ new: true }` — sales-engine's own capture below needs this lead's
+  // already-stored `adId`/`product` (set at /start), which this update does
+  // not itself change; without `new: true`, findOneAndUpdate returns the
+  // PRE-update doc (or null on a fresh upsert), silently losing them.
+  let leadDoc = null;
   try {
-    await Lead.findOneAndUpdate(
+    leadDoc = await Lead.findOneAndUpdate(
       { userId },
       { phone, fullName, username },
-      { upsert: true }
+      { upsert: true, new: true }
     );
 
     // Update phone in sales-bot DB for COMPANY HUB
@@ -267,6 +279,15 @@ bot.on('contact', async (msg) => {
   // Master Student Identity (identity-service) — fire-and-forget, never
   // awaited by anything that would delay this lead's own confirmation.
   void resolveLead({ userId, fullName, phone, username });
+  // Sales Automation Engine (sales-engine) — same fire-and-forget discipline.
+  void captureLead({
+    userId,
+    fullName,
+    phone,
+    username,
+    adId: leadDoc?.adId,
+    product: leadDoc?.product,
+  });
 
   await bot.sendMessage(userId, "✅ Rahmat! Tez orada siz bilan bog'lanamiz 😊", {
     reply_markup: { remove_keyboard: true },

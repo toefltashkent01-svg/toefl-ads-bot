@@ -1,2 +1,11 @@
 node_modules/
 .env
+
+# Secrets — never commit real env files (.env.bak-* backups included).
+# .env.example stays tracked on purpose.
+node_modules/
+dist/
+*.log
+.env
+.env.*
+!.env.example
