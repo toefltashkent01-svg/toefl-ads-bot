@@ -12,6 +12,7 @@ const {
   MONGODB_URI,
   PORT = 3000,
   ADMIN_CHAT_ID,
+  ADMIN_TOPIC_ID, // optional: forum topic (message_thread_id) inside ADMIN_CHAT_ID
   ADMIN_USERNAME,
   ADMIN_PHONE,
   CHANNEL_USERNAME,
@@ -184,6 +185,16 @@ const SalesUser = salesDbConn.model('SalesUser', new mongoose.Schema({
 
 const bot = new TelegramBot(BOT_TOKEN, { polling: false });
 
+// Staff notifications go to ADMIN_CHAT_ID — a private chat, or a forum group
+// plus ADMIN_TOPIC_ID to land in one specific topic.
+function notifyAdmin(text) {
+  return bot.sendMessage(
+    ADMIN_CHAT_ID,
+    text,
+    ADMIN_TOPIC_ID ? { message_thread_id: Number(ADMIN_TOPIC_ID) } : undefined
+  );
+}
+
 // /start
 bot.onText(/\/start ?(.*)/, async (msg, match) => {
   const userId = msg.from.id;
@@ -220,9 +231,7 @@ bot.onText(/\/start ?(.*)/, async (msg, match) => {
     );
 
     if (ADMIN_CHAT_ID) {
-      await bot.sendMessage(
-        ADMIN_CHAT_ID,
-        `🆕 Yangi foydalanuvchi!\n` +
+      await notifyAdmin(`🆕 Yangi foydalanuvchi!\n` +
         `👤 ${fullName}\n` +
         `🔗 @${username || 'yoq'}\n` +
         `🆔 ID: ${userId}` +
@@ -350,9 +359,7 @@ async function acceptPhone(from, phone) {
 
   if (ADMIN_CHAT_ID) {
     try {
-      await bot.sendMessage(
-        ADMIN_CHAT_ID,
-        `📲 Yangi telefon raqam!\n\n` +
+      await notifyAdmin(`📲 Yangi telefon raqam!\n\n` +
         `👤 ${fullName}\n` +
         `🔗 @${username}\n` +
         `📱 ${phone}\n` +
@@ -404,9 +411,7 @@ async function handleFunnelAnswer(chatId, kind, value) {
 
     await bot.sendMessage(chatId, DONE_TEXT);
     if (ADMIN_CHAT_ID) {
-      await bot.sendMessage(
-        ADMIN_CHAT_ID,
-        `🔥 YANGI LEAD!\n` +
+      await notifyAdmin(`🔥 YANGI LEAD!\n` +
         `👤 ${updated.fullName}\n` +
         `📱 ${updated.phone}\n` +
         `💬 @${updated.username || 'yoq'}\n` +
