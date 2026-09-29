@@ -18,6 +18,11 @@ const leadSchema = new mongoose.Schema({
   // `det_`-prefixed adId has actually been used for a real ad yet; the copy
   // is ready whenever one is.
   product:  { type: String, enum: ['TOEFL', 'DET'], default: 'TOEFL' },
+  // Phone-first funnel: which question the lead is on, and their answers.
+  step:     { type: String, enum: ['phone', 'purpose', 'timeline', 'level', 'done'], default: null },
+  purpose:  { type: String, default: null },
+  timeline: { type: String, default: null },
+  level:    { type: String, default: null },
   createdAt:{ type: Date,   default: Date.now },
 });
 

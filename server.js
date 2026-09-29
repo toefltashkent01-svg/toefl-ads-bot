@@ -87,6 +87,55 @@ function productFor(adId) {
   return adId && /^det_/i.test(adId) ? 'DET' : 'TOEFL';
 }
 
+// ── Phone-first funnel (same flow as the toefl/cefr/edugo lead bots) ─────────
+// /start -> phone (contact button, name from Telegram profile) -> purpose
+// -> timeline -> level -> done.
+
+const PHONE_ASK = `📱 Boshlash uchun telefon raqamingizni pastdagi tugma bilan ulashing.`;
+const ASK_PURPOSE  = 'TOEFL sertifikati sizga nima uchun kerak?';
+const ASK_TIMELINE = 'Testni qancha muddatda topshirishingiz kerak?';
+const ASK_LEVEL    = 'Hozirgi ingliz tili darajangiz qanday?';
+const DONE_TEXT    = "Rahmat! ✅\n\nMa'lumotlaringiz qabul qilindi. Tez orada bog'lanamiz.";
+const BAD_PHONE    = "Iltimos, to'g'ri raqam yuboring (masalan: 90 123 45 67).";
+
+const PURPOSE_OPTS = [
+  ['🎓 Universitetga hujjat uchun', 'university'],
+  ['💼 Ish uchun', 'job'],
+  ['✈️ Migratsiya uchun', 'migration'],
+  ['🤔 Shunchaki bilmoqchiman', 'curious'],
+];
+const TIMELINE_OPTS = [
+  ['⚡ Shu oy', 'this_month'],
+  ['📅 1-3 oy ichida', '1_3_months'],
+  ['🗓 3+ oydan keyin', 'later'],
+  ['🤔 Hali aniq emas', 'unsure'],
+];
+const LEVEL_OPTS = [
+  ['🌱 Boshlang\'ich', 'beginner'],
+  ['📘 O\'rta', 'intermediate'],
+  ['🚀 Yuqori', 'advanced'],
+  ['🤷 Bilmayman', 'unsure'],
+];
+const FUNNEL_NEXT = {
+  purpose:  { field: 'purpose',  opts: PURPOSE_OPTS,  next: 'timeline', ask: ASK_TIMELINE, nextOpts: TIMELINE_OPTS },
+  timeline: { field: 'timeline', opts: TIMELINE_OPTS, next: 'level',    ask: ASK_LEVEL,    nextOpts: LEVEL_OPTS },
+  level:    { field: 'level',    opts: LEVEL_OPTS,    next: 'done' },
+};
+
+const PHONE_KEYBOARD = {
+  keyboard: [[{ text: '📱 Raqamni ulashish', request_contact: true }]],
+  resize_keyboard: true,
+  one_time_keyboard: true,
+};
+
+function optionsKeyboard(opts, kind) {
+  return { inline_keyboard: opts.map(([label, value]) => [{ text: label, callback_data: `${kind}:${value}` }]) };
+}
+function labelFor(opts, value) {
+  const hit = opts.find(([, v]) => v === value);
+  return hit ? hit[0] : value;
+}
+
 // ── Keyboards ────────────────────────────────────────────────────────────────
 
 const BTN_1 = { inline_keyboard: [[{ text: "❓ Qanday qilib olsa bo'ladi?", callback_data: 'how' }]] };
@@ -149,7 +198,7 @@ bot.onText(/\/start ?(.*)/, async (msg, match) => {
     // Save to toefl-ads-bot DB
     await Lead.findOneAndUpdate(
       { userId },
-      { userId, fullName, username, adId, product },
+      { userId, fullName, username, adId, product, step: 'phone' },
       { upsert: true, new: true }
     );
 
@@ -189,9 +238,9 @@ bot.onText(/\/start ?(.*)/, async (msg, match) => {
   // a separate call from sales-engine's later campaign-level match.
   void recordTouch({ userId, fullName, adId });
 
-  // Welcome + only first button — product-specific text, see `productFor`.
-  await bot.sendMessage(userId, product === 'DET' ? DET_WELCOME_TEXT : WELCOME_TEXT, {
-    reply_markup: BTN_1,
+  // Welcome + phone request — product-specific text, see `productFor`.
+  await bot.sendMessage(userId, `${product === 'DET' ? DET_WELCOME_TEXT : WELCOME_TEXT}\n\n${PHONE_ASK}`, {
+    reply_markup: PHONE_KEYBOARD,
     disable_web_page_preview: true,
   });
 });
@@ -205,6 +254,14 @@ bot.onText(/\/start ?(.*)/, async (msg, match) => {
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   await bot.answerCallbackQuery(query.id);
+
+  // Funnel answers arrive as "kind:value"; the legacy plain "timeline" button
+  // (no value) still falls through to the switch below.
+  const [kind, value] = (query.data || '').split(':');
+  if (value && FUNNEL_NEXT[kind]) {
+    await handleFunnelAnswer(chatId, kind, value);
+    return;
+  }
 
   let product = 'TOEFL';
   try {
@@ -247,12 +304,11 @@ bot.on('callback_query', async (query) => {
   }
 });
 
-// Contact share handler
-bot.on('contact', async (msg) => {
-  const userId   = msg.from.id;
-  const phone    = msg.contact.phone_number;
-  const fullName = [msg.from.first_name, msg.from.last_name].filter(Boolean).join(' ');
-  const username = msg.from.username || 'yoq';
+// Phone step — shared by the contact button and a typed number.
+async function acceptPhone(from, phone) {
+  const userId   = from.id;
+  const fullName = [from.first_name, from.last_name].filter(Boolean).join(' ');
+  const username = from.username || 'yoq';
 
   // `{ new: true }` — sales-engine's own capture below needs this lead's
   // already-stored `adId`/`product` (set at /start), which this update does
@@ -262,7 +318,7 @@ bot.on('contact', async (msg) => {
   try {
     leadDoc = await Lead.findOneAndUpdate(
       { userId },
-      { phone, fullName, username },
+      { phone, fullName, username, step: 'purpose' },
       { upsert: true, new: true }
     );
 
@@ -289,9 +345,8 @@ bot.on('contact', async (msg) => {
     product: leadDoc?.product,
   });
 
-  await bot.sendMessage(userId, "✅ Rahmat! Tez orada siz bilan bog'lanamiz 😊", {
-    reply_markup: { remove_keyboard: true },
-  });
+  await bot.sendMessage(userId, '✅', { reply_markup: { remove_keyboard: true } });
+  await bot.sendMessage(userId, ASK_PURPOSE, { reply_markup: optionsKeyboard(PURPOSE_OPTS, 'purpose') });
 
   if (ADMIN_CHAT_ID) {
     try {
@@ -307,7 +362,65 @@ bot.on('contact', async (msg) => {
       console.error('Admin notify error:', err.message);
     }
   }
+}
+
+bot.on('contact', (msg) => acceptPhone(msg.from, msg.contact.phone_number));
+
+// A typed number while the lead is on the phone step; any other text at that
+// step just gets the phone request again.
+bot.on('message', async (msg) => {
+  if (msg.contact || !msg.text || msg.text.startsWith('/')) return;
+  try {
+    const lead = await Lead.findOne({ userId: msg.from.id }, 'step').lean();
+    if (!lead || lead.step !== 'phone') return;
+    const digits = msg.text.replace(/\D/g, '');
+    if (digits.length < 9) {
+      await bot.sendMessage(msg.chat.id, BAD_PHONE, { reply_markup: PHONE_KEYBOARD });
+      return;
+    }
+    await acceptPhone(msg.from, msg.text.trim());
+  } catch (err) {
+    console.error('DB error on typed phone:', err.message);
+  }
 });
+
+// purpose -> timeline -> level -> done
+async function handleFunnelAnswer(chatId, kind, value) {
+  const step = FUNNEL_NEXT[kind];
+  try {
+    const lead = await Lead.findOne({ userId: chatId }).lean();
+    if (!lead || lead.step !== kind) return; // stale/duplicate tap
+    const label = labelFor(step.opts, value);
+    const updated = await Lead.findOneAndUpdate(
+      { userId: chatId },
+      { [step.field]: label, step: step.next },
+      { new: true }
+    );
+
+    if (step.next !== 'done') {
+      await bot.sendMessage(chatId, step.ask, { reply_markup: optionsKeyboard(step.nextOpts, step.next) });
+      return;
+    }
+
+    await bot.sendMessage(chatId, DONE_TEXT);
+    if (ADMIN_CHAT_ID) {
+      await bot.sendMessage(
+        ADMIN_CHAT_ID,
+        `🔥 YANGI LEAD!\n` +
+        `👤 ${updated.fullName}\n` +
+        `📱 ${updated.phone}\n` +
+        `💬 @${updated.username || 'yoq'}\n` +
+        `🎯 ${updated.purpose}\n` +
+        `📅 ${updated.timeline}\n` +
+        `📶 ${updated.level}\n\n` +
+        `🆔 ID: ${chatId}` +
+        (updated.adId ? `\n📢 Reklama: ${updated.adId}` : '')
+      );
+    }
+  } catch (err) {
+    console.error('Funnel error:', err.message);
+  }
+}
 
 // ── HTTP server ───────────────────────────────────────────────────────────────
 
